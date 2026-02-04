@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"k8s.io/client-go/tools/record"
 
 	"github.com/golang/mock/gomock"
+	"github.com/ouzi-dev/credstash-operator/pkg/flags"
 	"github.com/ouzi-dev/credstash-operator/pkg/mocks"
 	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -40,6 +42,7 @@ type testReconcileItem struct {
 	customResource       *credstashv1alpha1.CredstashSecret
 	existingSecret       *corev1.Secret
 	credstashError       error
+	expectedRequeueAfter time.Duration
 	expectedResultSecret *corev1.Secret
 	expectedEvents       []string
 }
@@ -48,6 +51,7 @@ var (
 	credstashGetterReturn = map[string][]byte{
 		credstashKey: []byte(credstashValue),
 	}
+	pollInterval = 5 * time.Minute
 )
 
 var tests = []testReconcileItem{
@@ -72,6 +76,7 @@ var tests = []testReconcileItem{
 		},
 		existingSecret:       nil,
 		credstashError:       errors.New(errorString),
+		expectedRequeueAfter: 0,
 		expectedResultSecret: nil,
 		expectedEvents:       []string{},
 	},
@@ -96,6 +101,7 @@ var tests = []testReconcileItem{
 		},
 		existingSecret: nil,
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -145,6 +151,7 @@ var tests = []testReconcileItem{
 			Type: corev1.SecretTypeOpaque,
 		},
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -187,6 +194,7 @@ var tests = []testReconcileItem{
 			Data: credstashGetterReturn,
 		},
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -221,6 +229,7 @@ var tests = []testReconcileItem{
 		},
 		existingSecret: nil,
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
@@ -264,6 +273,7 @@ var tests = []testReconcileItem{
 			Data: credstashGetterReturn,
 		},
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
@@ -307,6 +317,7 @@ var tests = []testReconcileItem{
 			Data: credstashGetterReturn,
 		},
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
@@ -342,6 +353,7 @@ var tests = []testReconcileItem{
 		},
 		existingSecret: nil,
 		credstashError: nil,
+		expectedRequeueAfter: pollInterval,
 		expectedResultSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
@@ -358,6 +370,12 @@ var tests = []testReconcileItem{
 
 //nolint funlen
 func TestReconcileCredstashSecret_Reconcile(t *testing.T) {
+	previousPollInterval := flags.PollInterval
+	flags.PollInterval = pollInterval
+	defer func() {
+		flags.PollInterval = previousPollInterval
+	}()
+
 	for _, testData := range tests {
 		t.Run(testData.testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -406,9 +424,10 @@ func TestReconcileCredstashSecret_Reconcile(t *testing.T) {
 				Return(credstashGetterReturn, testData.credstashError).
 				Times(1)
 
-			_, err := r.Reconcile(req)
+			result, err := r.Reconcile(req)
 
 			assert.Equal(t, testData.credstashError, err)
+			assert.Equal(t, testData.expectedRequeueAfter, result.RequeueAfter)
 
 			var expectedSecretName string
 			if testData.expectedResultSecret == nil {

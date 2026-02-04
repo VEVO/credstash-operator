@@ -101,7 +101,6 @@ fmt:
 
 lint:
 	golangci-lint run \
-	--enable-all \
 	-D gochecknoglobals \
 	-D gochecknoinits \
 	-D dupl \

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/ouzi-dev/credstash-operator/pkg/env"
 
@@ -57,6 +58,11 @@ func init() {
 		"aws-config-secret",
 		"",
 		"If provided the controller will load AWS credentials from the named kubernetes secret")
+	pflag.DurationVar(
+		&flags.PollInterval,
+		"poll-interval",
+		5*time.Minute,
+		"How often to poll Credstash for updates to tracked secrets")
 }
 
 func printVersion() {

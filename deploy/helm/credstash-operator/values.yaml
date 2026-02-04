@@ -21,6 +21,9 @@ operatorInstance:
 # Specifies whether to turn on verbose logs
 verboseLogging: false
 
+# How often to poll Credstash for updates to tracked secrets
+pollInterval: 5m
+
 awsCredentials:
   create: false
   # Annotations to add to the secret

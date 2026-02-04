@@ -247,10 +247,10 @@ func (r *ReconcileCredstashSecret) Reconcile(request reconcile.Request) (reconci
 			return reconcile.Result{}, err
 		}
 
-		// Secret created successfully - don't requeue
+		// Secret created successfully - requeue after poll interval
 		r.eventRecorder.Eventf(instance, event_consts.TypeNormal, event_consts.ReasonSuccessCreateSecret, event_consts.MessageSuccessCreatingSecret,
 			secret.Name, secret.Namespace)
-		return reconcile.Result{}, nil
+		return r.requeueAfterInterval(), nil
 	} else if err != nil {
 		r.eventRecorder.Eventf(instance, event_consts.TypeWarning, event_consts.ReasonErrGeneric, err.Error())
 		return reconcile.Result{}, err
@@ -273,17 +273,18 @@ func (r *ReconcileCredstashSecret) Reconcile(request reconcile.Request) (reconci
 		}
 		r.eventRecorder.Eventf(instance, event_consts.TypeNormal, event_consts.ReasonSuccessUpdateSecret, event_consts.MessageSuccessUpdatingSecret,
 			secret.Name, secret.Namespace)
-		return reconcile.Result{}, nil
+		// Secret updated successfully - requeue after poll interval
+		return r.requeueAfterInterval(), nil
 	}
 
-	// Secret already exists - don't requeue
+	// Secret already exists - requeue after poll interval
 	reqLogger.Info(
 		"Skip reconcile: Secret already exists and is up to date",
 		"Secret.Namespace",
 		found.Namespace,
 		"Secret.Name",
 		found.Name)
-	return reconcile.Result{}, nil
+	return r.requeueAfterInterval(), nil
 }
 
 // secretForCR returns a secret the same name/namespace as the cr
@@ -316,6 +317,13 @@ func (r *ReconcileCredstashSecret) secretForCR(cr *credstashv1alpha1.CredstashSe
 	}
 
 	return secret, nil
+}
+
+func (r *ReconcileCredstashSecret) requeueAfterInterval() reconcile.Result {
+	if flags.PollInterval <= 0 {
+		return reconcile.Result{}
+	}
+	return reconcile.Result{RequeueAfter: flags.PollInterval}
 }
 
 // setupPredicateFuncs makes sure that we only watch resources that match the correct label selector that we want
