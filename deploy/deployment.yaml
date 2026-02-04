@@ -21,6 +21,7 @@ spec:
           args:
             - --aws-config-secret
             - aws-credentials
+            - --poll-interval=5m
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE

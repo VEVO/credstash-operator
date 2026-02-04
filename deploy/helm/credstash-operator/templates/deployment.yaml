@@ -29,6 +29,9 @@ spec:
 {{- if .Values.operatorInstance }}
             - --selector-label={{ .Values.operatorInstance }}
 {{- end }}
+{{- if .Values.pollInterval }}
+            - --poll-interval={{ .Values.pollInterval }}
+{{- end }}
 {{- if .Values.verboseLogging }}
             - --zap-level 1
 {{- end }}
